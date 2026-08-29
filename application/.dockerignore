@@ -1,0 +1,15 @@
+target/
+build/
+.gradle/
+gradle/
+gradlew
+gradlew.bat
+build.gradle
+settings.gradle
+.idea/
+.vscode/
+*.iml
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
