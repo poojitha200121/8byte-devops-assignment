@@ -13,3 +13,10 @@ settings.gradle
 *.tmp
 .DS_Store
 Thumbs.db
+.github/
+.devcontainer/
+k8s/
+.gitpod.yml
+docker-compose.yml
+conf.d/
+README.md
