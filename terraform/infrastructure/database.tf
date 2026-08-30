@@ -20,7 +20,7 @@ resource "aws_db_instance" "postgres" {
   apply_immediately          = true
   deletion_protection        = false
   delete_automated_backups   = true
-  backup_retention_period    = 7
+  backup_retention_period    = 1
   auto_minor_version_upgrade = true
   tags = {
     Name = "rds-${var.project_name}-${var.environment}-postgres"
