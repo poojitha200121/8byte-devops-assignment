@@ -42,3 +42,55 @@ resource "aws_iam_instance_profile" "ec2" {
 }
 
 
+resource "aws_iam_role_policy" "github_actions" {
+  name = "${var.project_name}-${var.environment}-github-actions-policy"
+  role = aws_iam_role.github_actions.id
+
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "ecr:GetAuthorizationToken",
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+      {
+
+        Action = [
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:BatchGetImage",
+          "ecr:CompleteLayerUpload",
+          "ecr:InitiateLayerUpload",
+          "ecr:PutImage",
+          "ecr:UploadLayerPart"
+        ]
+        Effect   = "Allow"
+        Resource = aws_ecr_repository.app.arn
+      },
+
+      {
+        Action = [
+          "ssm:SendCommand",
+        ]
+        Effect = "Allow"
+        Resource = [
+          "arn:aws:ssm:${var.aws_region}::document/AWS-RunShellScript",
+          aws_instance.app.arn
+        ]
+      },
+      {
+        Action = [
+          "ssm:GetCommandInvocation",
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      }
+
+
+    ]
+  })
+}
+
