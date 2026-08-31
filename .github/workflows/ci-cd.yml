@@ -61,7 +61,7 @@ jobs:
            - name: Deploy to EC2 using SSM
              run: | 
                 COMMAND_ID=$(aws ssm send-command \
-                  --instance-ids "i-095a672c13d59d813" \
+                  --instance-ids "i-0dfea7e6623f328f8" \
                   --document-name "AWS-RunShellScript" \
                   --parameters commands='["aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 521223133967.dkr.ecr.ap-south-1.amazonaws.com","docker pull '"$IMAGE_URI"'","docker stop petclinic || true","docker rm petclinic || true","docker run -d --name petclinic --restart unless-stopped --env-file /opt/petclinic/app.env -p 9090:8080 '"$IMAGE_URI"'"]' \
                   --query "Command.CommandId" \
