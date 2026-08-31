@@ -1,6 +1,3 @@
-The following is a clean draft of a README.md:
-
-```markdown
 # 8Byte DevOps Assignment
 
 ## Overview
@@ -168,4 +165,3 @@ Grafana:
 
 ```text
 http://13.232.100.65:3000
-```
