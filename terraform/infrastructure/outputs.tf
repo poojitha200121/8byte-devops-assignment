@@ -13,6 +13,16 @@ output "application_url" {
   value       = "http://${aws_instance.app.public_ip}:9090"
 }
 
+output "alb_dns_name" {
+  description = "DNS name of the Application Load Balancer"
+  value       = aws_lb.app.dns_name
+}
+
+output "alb_application_url" {
+  description = "Application URL through the Application Load Balancer"
+  value       = "http://${aws_lb.app.dns_name}"
+}
+
 output "grafana_url" {
   description = "HTTP URL using the EC2 public ip and port 3000"
   value       = "http://${aws_instance.app.public_ip}:3000"
