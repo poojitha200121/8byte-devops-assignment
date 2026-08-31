@@ -1,10 +1,10 @@
-#. Resolutions
+# Challenges and Resolutions
 
 ## 1. AWS Free Tier Constraints
 
 Challenge: AWS Free Tier Constraints required keeping infrastructure cost low.
 
-Resolution: AWS Free Tier Constraints were handled by using EC2 of EKS or ECS Fargate avoiding NAT Gateway and ALB and keeping RDS and monitoring minimal.
+Resolution: AWS Free Tier Constraints were handled by using EC2 instead of EKS or ECS Fargate avoiding NAT Gateway and ALB and keeping RDS and monitoring minimal.
 
 ## 2. Terraform State Management
 
