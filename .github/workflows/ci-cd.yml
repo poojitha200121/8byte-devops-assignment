@@ -76,7 +76,7 @@ jobs:
                 COMMAND_ID=$(aws ssm send-command \
                   --instance-ids "$INSTANCE_ID" \
                   --document-name "AWS-RunShellScript" \
-                  --parameters commands="[\"aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 521223133967.dkr.ecr.ap-south-1.amazonaws.com\",\"docker pull $IMAGE_URI\",\"mkdir -p /opt/petclinic\",\"aws ssm get-parameter --name /8byte-devops-assignment/staging/app-env --with-decryption --region ap-south-1 --query Parameter.Value --output text > /opt/petclinic/app.env\",\"chmod 600 /opt/petclinic/app.env\",\"docker stop petclinic || true\",\"docker rm petclinic || true\",\"docker run -d --name petclinic --restart unless-stopped --env-file /opt/petclinic/app.env -p 9090:8080 $IMAGE_URI\"]" \
+                  --parameters commands="[\"aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 521223133967.dkr.ecr.ap-south-1.amazonaws.com\",\"docker pull $IMAGE_URI\",\"mkdir -p /opt/petclinic\",\"aws ssm get-parameter --name /8byte-devops-assignment/staging/app-env --with-decryption --region ap-south-1 --query Parameter.Value --output text > /opt/petclinic/app.env\",\"chmod 600 /opt/petclinic/app.env\",\"docker stop petclinic || true\",\"docker rm petclinic || true\",\"docker run -d --name petclinic --restart unless-stopped --env-file /opt/petclinic/app.env -p 9090:8080 --log-driver=awslogs --log-opt awslogs-region=ap-south-1 --log-opt awslogs-group=8byte-devops-assignment-staging-application-logs --log-opt awslogs-stream=petclinic $IMAGE_URI\"]" \
                   --query "Command.CommandId" \
                   --output text)
                 sleep 20
