@@ -2,142 +2,59 @@
 
 ## Overview
 
-This repository contains my solution for the 8Byte DevOps assignment. The goal was to take a ready-made Java application and build the surrounding DevOps setup for provisioning, deployment, monitoring, logging, and documentation.
+This repository contains an end-to-end DevOps setup for a Spring Boot Petclinic application. The application is containerized with Docker, deployed on AWS, automated with GitHub Actions, and monitored using Prometheus, Grafana, and CloudWatch.
 
-I used Spring Petclinic as the sample application because the assignment clearly mentioned that application logic was not the main focus. Most of the effort is therefore around AWS infrastructure, Docker image handling, CI/CD automation, monitoring, and operational practices.
+The main focus of this project is infrastructure provisioning, deployment automation, security, monitoring, logging, and documentation.
 
 ## Tech Stack
 
-- Java 21, Spring Boot
+- Java 21 and Spring Boot
 - Docker
 - Terraform
-- AWS EC2, RDS PostgreSQL, ECR, IAM, SSM, CloudWatch
+- AWS EC2, RDS PostgreSQL, ECR, IAM, SSM, ALB, CloudWatch, S3
 - GitHub Actions
 - Prometheus and Grafana
 
 ## Repository Structure
 
 ```text
-application/                 Spring Petclinic application and Dockerfile
-terraform/state-backend/     S3 backend for Terraform state
-terraform/infrastructure/    AWS infrastructure code
+application/                 Spring Boot application and Dockerfile
+terraform/state-backend/     Terraform state backend setup
+terraform/infrastructure/    Main AWS infrastructure code
 .github/workflows/           CI/CD pipeline
-monitoring/                  Prometheus and Grafana configuration
+monitoring/                  Prometheus and Grafana setup
+docs/                        Architecture and challenge notes
 ```
 
 ## Infrastructure
 
-Terraform provisions the following AWS resources:
+Terraform provisions the AWS infrastructure required to run the application:
 
 - VPC with public and private subnets
-- Internet Gateway and route table
+- Internet Gateway and route tables
 - EC2 instance for running Docker containers
 - RDS PostgreSQL database in private subnets
+- Application Load Balancer for application traffic
 - ECR repository for Docker images
-- Application Load Balancer for application access
-- Security groups for application and database access
-- IAM role and instance profile for EC2
-- GitHub Actions OIDC role for CI/CD
-- CloudWatch log group
+- Security groups for ALB, application, and database access
+- IAM roles for EC2 and GitHub Actions
+- CloudWatch log group for application logs
+- S3 backend for Terraform state
 
-The application is hosted on EC2 using Docker. RDS is kept in private subnets and is reachable only from the application security group. The Application Load Balancer provides the main entry point for the application.
+RDS is not publicly accessible. The application connects to the database from inside the VPC.
 
-## Deployment Flow
+## Terraform State
 
-GitHub Actions is used for continuous integration and continuous deployment.
+Terraform state is stored in an S3 bucket instead of only on the local machine. The backend bucket is configured with encryption, versioning, and public access blocking.
 
-For pull requests, the pipeline runs:
-
-- Repository checkout
-- Java 21 setup
-- Maven tests
-- Docker build validation
-
-For pushes to `main`, the pipeline additionally:
-
-- Authenticates to AWS using OIDC
-- Logs in to Amazon ECR
-- Builds and tags Docker image with Git commit SHA
-- Pushes Docker image to ECR
-- Deploys to EC2 using AWS SSM Run Command
-
-There is no need to use SSH for deployment. The EC2 instance is managed through AWS Systems Manager, which keeps the deployment flow cleaner and avoids opening port 22.
-
-## Runtime Configuration
-
-Application runtime configuration is stored on EC2 in:
-
-```text
-/opt/petclinic/app.env
-```
-
-Example:
-
-```env
-SPRING_PROFILES_ACTIVE=postgres
-POSTGRES_URL=jdbc:postgresql://<rds-endpoint>:5432/petclinic
-POSTGRES_USER=petclinicadmin
-POSTGRES_PASS=<database-password>
-```
-
-This file is intentionally not committed to Git because it contains environment-specific values and secrets.
-
-## Monitoring and Logging
-
-Prometheus scrapes Spring Boot Actuator metrics from:
-
-```text
-/actuator/prometheus
-```
-
-Grafana is used for creating dashboards.
-
-Dashboards include:
-
-- Application metrics: JVM memory, CPU usage, HTTP request metrics
-- Infrastructure metrics: service availability, scrape duration, process metrics
-
-CloudWatch Logs is used for centralized application logging, and log retention is configured through Terraform.
-
-## Security Considerations
-
-Security practices followed:
-
-- RDS is deployed in private subnets
-- Database access is allowed only from the application security group
-- Application traffic is routed through an Application Load Balancer
-- GitHub Actions uses OIDC instead of long-lived AWS keys
-- EC2 access and deployment use AWS SSM instead of SSH
-- Sensitive files like terraform.tfvars are not included in Git
-- Application secrets are stored outside the repository
-- Security group ingress is configurable
-
-For demo purposes, some access rules can be temporarily opened. In a real production setup, I would restrict access further using office/VPN CIDR ranges, private subnets for the application layer, WAF rules, and a stricter ALB-only traffic path.
-
-## Cost Considerations
-
-The setup was created with an AWS Free Tier account in mind, so I avoided expensive components wherever possible.
-
-Cost-saving choices:
-
-- Single EC2 instance
-- No NAT Gateway
-- Minimal ALB usage for the assignment requirement
-- Minimal monitoring setup
-- Small RDS instance
-
-For a larger production setup, I would add Auto Scaling, Multi-AZ RDS, private application subnets, VPC endpoints, AWS Secrets Manager or SSM Parameter Store, and stronger alerting.
-
-## Useful Commands
-
-Terraform state backend:
+State backend setup:
 
 ```bash
 terraform -chdir=terraform/state-backend init
 terraform -chdir=terraform/state-backend apply
 ```
 
-Infrastructure:
+Main infrastructure setup:
 
 ```bash
 terraform -chdir=terraform/infrastructure init
@@ -145,34 +62,177 @@ terraform -chdir=terraform/infrastructure plan
 terraform -chdir=terraform/infrastructure apply
 ```
 
-Docker build:
-
-```bash
-docker build -t petclinic:test application
-```
-
-Cleanup:
+To destroy the main infrastructure:
 
 ```bash
 terraform -chdir=terraform/infrastructure destroy
 ```
 
-## Demo URLs
+The state backend should not be destroyed unless the project is fully cleaned up.
 
-Application through Load Balancer:
+## Deployment
+
+GitHub Actions is used for CI/CD.
+
+On pull requests, the pipeline:
+
+- Checks out the repository
+- Sets up Java 21
+- Runs Maven tests
+- Validates Docker image build
+
+On push to `main`, the pipeline:
+
+- Authenticates to AWS using GitHub OIDC
+- Logs in to Amazon ECR
+- Builds the Docker image
+- Tags the image using the Git commit SHA
+- Pushes the image to ECR
+- Finds the current EC2 instance by tag
+- Deploys the container using AWS SSM Run Command
+
+Deployment is done through AWS Systems Manager instead of SSH, so port 22 does not need to be opened for deployment.
+
+## Runtime Configuration and Secrets
+
+Application runtime configuration is stored in AWS SSM Parameter Store as a `SecureString`.
+
+Parameter name:
 
 ```text
-http://8byte-staging-alb-885064939.ap-south-1.elb.amazonaws.com
+/8byte-devops-assignment/staging/app-env
 ```
 
-Direct EC2 application URL:
+During deployment, the EC2 instance fetches this parameter and creates:
 
 ```text
-http://13.232.100.65:9090
+/opt/petclinic/app.env
 ```
 
-Grafana:
+The Docker container uses this file through `--env-file`.
+
+This avoids storing database credentials in Git and also avoids manually recreating the env file when EC2 is replaced.
+
+## Monitoring
+
+Prometheus scrapes application metrics from the Spring Boot Actuator endpoint:
 
 ```text
-http://13.232.100.65:3000
+/actuator/prometheus
+```
+
+Grafana is used to visualize metrics from Prometheus.
+
+The monitoring setup script is available at:
+
+```text
+monitoring/install-monitoring.sh
+```
+
+Run it on EC2 after infrastructure creation:
+
+```bash
+sudo bash monitoring/install-monitoring.sh
+```
+
+Useful monitoring URLs:
+
+```text
+Prometheus: http://<EC2_PUBLIC_IP>:9091
+Grafana:    http://<EC2_PUBLIC_IP>:3000
+```
+
+Example dashboard areas:
+
+- Application availability
+- HTTP request count
+- Request latency
+- JVM memory usage
+- JVM threads
+- Database connection pool metrics
+
+## Logging
+
+Application logs are centralized in CloudWatch Logs. The application container uses Docker's `awslogs` log driver and sends logs to:
+
+```text
+8byte-devops-assignment-staging-application-logs
+```
+
+CloudWatch log retention is configured in Terraform to control cost.
+
+## Security Considerations
+
+- RDS PostgreSQL is deployed in private subnets.
+- Database access is allowed only from the application security group.
+- GitHub Actions uses OIDC instead of long-lived AWS access keys.
+- EC2 uses an IAM instance profile for AWS access.
+- Deployment is done using SSM instead of SSH.
+- Runtime secrets are stored in SSM Parameter Store as `SecureString`.
+- EC2 metadata uses IMDSv2.
+- ECR image scanning is enabled.
+- Security group ingress is configurable using Terraform variables.
+
+## Backup Strategy
+
+RDS automated backup retention is configured in Terraform:
+
+```hcl
+backup_retention_period = 1
+```
+
+For this assignment, the retention period is kept low to reduce cost. For production, the backup retention period should be increased, deletion protection should be enabled, and final snapshots should be retained.
+
+## Cost Optimization
+
+The setup is kept lightweight to control AWS cost:
+
+- Single EC2 instance
+- Small RDS instance
+- Single-AZ RDS
+- No NAT Gateway
+- Short CloudWatch log retention
+- Short RDS backup retention
+- Resources can be destroyed using Terraform after testing
+
+## Useful Checks
+
+Check Terraform outputs:
+
+```bash
+terraform -chdir=terraform/infrastructure output
+```
+
+Check application container:
+
+```bash
+docker ps
+curl -I http://localhost:9090/
+curl -I http://localhost:9090/actuator/health
+```
+
+Check Docker log driver:
+
+```bash
+docker inspect petclinic --format '{{.HostConfig.LogConfig.Type}}'
+```
+
+Expected log driver:
+
+```text
+awslogs
+```
+
+Check Prometheus targets:
+
+```text
+http://<EC2_PUBLIC_IP>:9091/targets
+```
+
+## Access URLs
+
+Use Terraform outputs to get the current ALB DNS name, EC2 public IP, ECR repository URL, and database endpoint:
+
+```bash
+terraform -chdir=terraform/infrastructure output
 ```

@@ -1,90 +1,111 @@
-# Architecture Diagram
+# Architecture
 
-This diagram shows the high-level flow of the deployed DevOps assignment.
+This project deploys a Dockerized Spring Boot Petclinic application on AWS. Terraform creates the infrastructure, GitHub Actions builds and deploys the application, and monitoring/logging is handled using Prometheus, Grafana, and CloudWatch.
+
+## High-Level Flow
 
 ```mermaid
 flowchart TB
     user["User / Browser"]
     github["GitHub Repository"]
-    actions["GitHub Actions CI/CD"]
+    actions["GitHub Actions"]
     oidc["GitHub OIDC"]
     iam["AWS IAM Role"]
-    ecr["Amazon ECR<br/>Docker Image Registry"]
-    ssm["AWS Systems Manager<br/>Run Command"]
-    igw["Internet Gateway"]
+    ecr["Amazon ECR"]
+    ssm["AWS Systems Manager"]
+    state["S3 Terraform State Backend"]
 
-    subgraph aws["AWS - ap-south-1"]
+    subgraph aws["AWS ap-south-1"]
         subgraph vpc["VPC"]
             subgraph public["Public Subnets"]
-                alb["Application Load Balancer<br/>HTTP :80"]
-                ec2["EC2 Instance<br/>Amazon Linux 2023"]
-                docker["Docker Runtime"]
-                app["Spring Petclinic Container<br/>EC2 :9090 -> Container :8080"]
-                prometheus["Prometheus Container<br/>EC2 :9091"]
-                grafana["Grafana Container<br/>EC2 :3000"]
+                alb["Application Load Balancer"]
+                ec2["EC2 Instance"]
+                app["Petclinic Docker Container<br/>Host 9090 -> Container 8080"]
+                prometheus["Prometheus<br/>Host 9091"]
+                grafana["Grafana<br/>Host 3000"]
             end
 
             subgraph private["Private Subnets"]
-                rds["Amazon RDS PostgreSQL<br/>Port :5432"]
+                rds["RDS PostgreSQL<br/>Port 5432"]
             end
         end
 
         cloudwatch["CloudWatch Logs"]
-        state["S3 Terraform State Backend<br/>Encryption + Versioning"]
+        parameter["SSM Parameter Store<br/>SecureString"]
     end
 
-    user -->|"HTTP request"| igw
-    igw --> alb
-    alb -->|"Forward to target group"| app
+    user -->|"HTTP"| alb
+    alb -->|"Forward traffic"| app
     app -->|"Database connection"| rds
 
     github --> actions
-    actions -->|"Request OIDC token"| oidc
-    oidc -->|"Assume role"| iam
+    actions -->|"OIDC authentication"| oidc
+    oidc --> iam
     actions -->|"Build and push image"| ecr
-    actions -->|"Send deployment command"| ssm
-    ssm -->|"Execute Docker commands"| ec2
-    ec2 --> docker
-    docker --> app
+    actions -->|"Send deploy command"| ssm
+    ssm --> ec2
     ec2 -->|"Pull image"| ecr
+    ec2 -->|"Fetch runtime env"| parameter
+    ec2 --> app
 
     prometheus -->|"Scrape /actuator/prometheus"| app
-    grafana -->|"Query metrics"| prometheus
+    grafana -->|"Read metrics"| prometheus
     app -->|"Application logs"| cloudwatch
+    state -->|"Stores Terraform state"| aws
 ```
 
-## Explanation
+## Request Flow
 
-- Users access the application through the internet-facing Application Load Balancer.
-- The Internet Gateway gives public subnets internet connectivity.
-- The ALB listens on port 80 and forwards traffic to the application running on EC2 port 9090.
-- Docker maps EC2 port 9090 to the Spring Boot container port 8080.
-- RDS PostgreSQL is placed in private subnets and accepts traffic only from the application layer.
-- GitHub Actions builds the Docker image and pushes it to Amazon ECR.
-- GitHub Actions uses OIDC to assume an AWS IAM role instead of storing AWS access keys.
-- Deployment is done through AWS Systems Manager Run Command instead of SSH.
-- Prometheus scrapes application metrics from `/actuator/prometheus`.
-- Grafana visualizes the metrics collected by Prometheus.
-- Application logs are sent to CloudWatch Logs.
-- Terraform state is stored remotely in S3 with encryption and versioning.
-
-## Interview Summary
-
-The application entry path is:
+User traffic reaches the Application Load Balancer first. The ALB forwards HTTP traffic to the EC2 instance on port `9090`. Docker maps host port `9090` to container port `8080`, where the Spring Boot application is running.
 
 ```text
-User -> Internet Gateway -> ALB:80 -> EC2:9090 -> Docker container:8080
+User -> ALB -> EC2:9090 -> Docker container:8080
 ```
 
-The deployment path is:
+## Database Flow
+
+The application connects to PostgreSQL running on Amazon RDS. RDS is deployed in private subnets and is not exposed directly to the internet.
 
 ```text
-GitHub Actions -> OIDC/IAM -> ECR -> SSM -> EC2 Docker container
+Application container -> RDS PostgreSQL:5432
 ```
 
-The monitoring and logging path is:
+## Deployment Flow
+
+GitHub Actions builds the Docker image and pushes it to ECR. The image is tagged using the Git commit SHA. For deployment, GitHub Actions uses AWS SSM Run Command to execute Docker commands on EC2.
+
+```text
+GitHub Actions -> ECR -> SSM -> EC2 -> Docker container
+```
+
+The workflow finds the current EC2 instance using its `Name` tag, so deployment does not depend on a hardcoded instance ID.
+
+## Secret Management
+
+Application environment variables are stored in AWS SSM Parameter Store as a `SecureString`. During deployment, EC2 fetches the parameter and writes it to `/opt/petclinic/app.env`. The Docker container then starts using this env file.
+
+This keeps secrets out of the repository and makes EC2 replacement easier.
+
+## Monitoring Flow
+
+The application exposes Prometheus metrics using Spring Boot Actuator. Prometheus scrapes `/actuator/prometheus`, and Grafana reads data from Prometheus to display dashboards.
 
 ```text
 Application metrics -> Prometheus -> Grafana
-Application logs -> CloudWatch Logs
 ```
+
+## Logging Flow
+
+The application container sends logs to CloudWatch Logs using Docker's `awslogs` driver.
+
+```text
+Application stdout/stderr -> Docker awslogs driver -> CloudWatch Logs
+```
+
+## Notes
+
+- The setup is intentionally lightweight for assignment and demo use.
+- EC2 is used for simple container hosting.
+- RDS is kept private for better security.
+- SSM is used instead of SSH for deployment.
+- In production, EC2 can be moved fully behind the ALB, HTTPS can be added, and Auto Scaling or ECS can be used.

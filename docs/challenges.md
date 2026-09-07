@@ -28,6 +28,10 @@ Prometheus and Grafana were running as separate Docker containers, so the dataso
 
 Docker logs are easy to check locally, but they are not enough for centralized logging. I configured the application container to send logs to CloudWatch Logs using the AWS logs driver. This makes application logs available from the AWS Console.
 
-## 8. Changing public IP during testing
+## 8. Runtime configuration after EC2 recreation
+
+When the EC2 instance was recreated, manually created runtime files were lost. To make the deployment repeatable, application environment values were moved to AWS SSM Parameter Store as a SecureString. During deployment, the EC2 instance fetches the parameter and recreates the env file before starting the container.
+
+## 9. Changing public IP during testing
 
 My local internet public IP changed while testing security group access. To keep the setup flexible, I made the allowed CIDR configurable. For a production setup, this should be restricted to office/VPN networks or replaced with a more controlled access pattern.
