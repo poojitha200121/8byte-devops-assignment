@@ -54,6 +54,43 @@ flowchart TB
     state -->|"Stores Terraform state"| aws
 ```
 
+## Simplified Flow Diagrams
+
+The full diagram above shows all major components together. The smaller diagrams below split the same architecture into runtime, deployment, and monitoring/logging flows.
+
+### Application Runtime Flow
+
+```mermaid
+flowchart LR
+    user["User / Browser"] --> alb["Application Load Balancer"]
+    alb --> ec2["EC2 Instance"]
+    ec2 --> app["Petclinic Docker Container<br/>Host 9090 -> Container 8080"]
+    app --> rds["RDS PostgreSQL<br/>Private Subnet"]
+```
+
+### CI/CD Deployment Flow
+
+```mermaid
+flowchart LR
+    dev["Code push to main"] --> gha["GitHub Actions"]
+    gha --> test["Run tests<br/>Build Docker image"]
+    test --> ecr["Push image to ECR"]
+    gha --> ssm["AWS SSM Run Command"]
+    ssm --> ec2["EC2 Instance"]
+    ec2 --> app["Run updated container"]
+```
+
+### Monitoring and Logging Flow
+
+```mermaid
+flowchart LR
+    app["Petclinic App<br/>/actuator/prometheus"] --> prometheus["Prometheus"]
+    prometheus --> grafana["Grafana Dashboard"]
+
+    app --> dockerlogs["Docker Logs"]
+    dockerlogs --> cloudwatch["CloudWatch Logs"]
+```
+
 ## Request Flow
 
 User traffic reaches the Application Load Balancer first. The ALB forwards HTTP traffic to the EC2 instance on port `9090`. Docker maps host port `9090` to container port `8080`, where the Spring Boot application is running.
