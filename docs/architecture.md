@@ -91,55 +91,21 @@ flowchart LR
     dockerlogs --> cloudwatch["CloudWatch Logs"]
 ```
 
-## Request Flow
+## Flow Summary
 
-User traffic reaches the Application Load Balancer first. The ALB forwards HTTP traffic to the EC2 instance on port `9090`. Docker maps host port `9090` to container port `8080`, where the Spring Boot application is running.
+- Users access the application through the Application Load Balancer.
+- The ALB forwards traffic to the EC2 instance on port `9090`.
+- Docker maps EC2 port `9090` to container port `8080`.
+- The application connects to RDS PostgreSQL in private subnets.
+- GitHub Actions builds the Docker image and pushes it to ECR.
+- Deployment is done through AWS SSM Run Command.
+- Runtime configuration is stored in SSM Parameter Store as a `SecureString`.
+- Prometheus collects application metrics from `/actuator/prometheus`.
+- Grafana reads metrics from Prometheus.
+- Application logs are sent to CloudWatch Logs using Docker's `awslogs` driver.
+- Terraform state is stored in S3.
 
-```text
-User -> ALB -> EC2:9090 -> Docker container:8080
-```
-
-## Database Flow
-
-The application connects to PostgreSQL running on Amazon RDS. RDS is deployed in private subnets and is not exposed directly to the internet.
-
-```text
-Application container -> RDS PostgreSQL:5432
-```
-
-## Deployment Flow
-
-GitHub Actions builds the Docker image and pushes it to ECR. The image is tagged using the Git commit SHA. For deployment, GitHub Actions uses AWS SSM Run Command to execute Docker commands on EC2.
-
-```text
-GitHub Actions -> ECR -> SSM -> EC2 -> Docker container
-```
-
-The workflow finds the current EC2 instance using its `Name` tag, so deployment does not depend on a hardcoded instance ID.
-
-## Secret Management
-
-Application environment variables are stored in AWS SSM Parameter Store as a `SecureString`. During deployment, EC2 fetches the parameter and writes it to `/opt/petclinic/app.env`. The Docker container then starts using this env file.
-
-This keeps secrets out of the repository and makes EC2 replacement easier.
-
-## Monitoring Flow
-
-The application exposes Prometheus metrics using Spring Boot Actuator. Prometheus scrapes `/actuator/prometheus`, and Grafana reads data from Prometheus to display dashboards.
-
-```text
-Application metrics -> Prometheus -> Grafana
-```
-
-## Logging Flow
-
-The application container sends logs to CloudWatch Logs using Docker's `awslogs` driver.
-
-```text
-Application stdout/stderr -> Docker awslogs driver -> CloudWatch Logs
-```
-
-## Notes
+## Design Notes
 
 - The setup is intentionally lightweight for assignment and demo use.
 - EC2 is used for simple container hosting.
