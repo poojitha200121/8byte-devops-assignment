@@ -31,7 +31,7 @@ flowchart TB
         end
 
         cloudwatch["CloudWatch Logs"]
-        parameter["SSM Parameter Store<br/>SecureString"]
+        secret["AWS Secrets Manager<br/>App runtime env"]
     end
 
     user -->|"HTTP"| alb
@@ -45,7 +45,7 @@ flowchart TB
     actions -->|"Send deploy command"| ssm
     ssm --> ec2
     ec2 -->|"Pull image"| ecr
-    ec2 -->|"Fetch runtime env"| parameter
+    ec2 -->|"Fetch runtime env"| secret
     ec2 --> app
 
     prometheus -->|"Scrape /actuator/prometheus"| app
@@ -99,7 +99,7 @@ flowchart LR
 - The application connects to RDS PostgreSQL in private subnets.
 - GitHub Actions builds the Docker image and pushes it to ECR.
 - Deployment is done through AWS SSM Run Command.
-- Runtime configuration is stored in SSM Parameter Store as a `SecureString`.
+- Runtime configuration is stored in AWS Secrets Manager.
 - Prometheus collects application metrics from `/actuator/prometheus`.
 - Grafana reads metrics from Prometheus.
 - Application logs are sent to CloudWatch Logs using Docker's `awslogs` driver.

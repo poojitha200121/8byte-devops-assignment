@@ -2,36 +2,36 @@
 
 ## 1. Working within AWS Free Tier limits
 
-The main constraint was to keep the solution practical without creating unnecessary cost. I chose EC2-based hosting instead of EKS or ECS Fargate, avoided NAT Gateway, and kept the monitoring setup lightweight. An Application Load Balancer was added because it was part of the assignment requirement, but the rest of the architecture was kept minimal.
+The setup had to stay practical without creating unnecessary cost. EC2-based hosting was used instead of EKS or ECS Fargate, NAT Gateway was avoided, and the monitoring setup was kept lightweight. An Application Load Balancer was added because it was part of the assignment requirement.
 
 ## 2. Terraform state management
 
-Local Terraform state is not ideal once a project becomes collaborative or needs repeatable deployment. To handle this better, I created an S3 backend with encryption, versioning, and public access blocking. This gives a safer place to store the infrastructure state.
+Local Terraform state is not ideal for repeatable infrastructure work. An S3 backend was created with encryption, versioning, and public access blocking to store state safely.
 
 ## 3. Secure CI/CD access to AWS
 
-I wanted the pipeline to deploy without storing long-lived AWS access keys in GitHub. I used GitHub Actions OIDC with an IAM role, so the workflow can request temporary AWS credentials only when it runs from the expected repository and branch.
+GitHub Actions uses OIDC with an IAM role instead of long-lived AWS access keys. The workflow receives temporary AWS credentials only when it runs from the expected repository and branch.
 
 ## 4. Deployment without SSH
 
-Opening SSH access just for deployment adds unnecessary exposure. I used AWS Systems Manager Run Command to connect the GitHub Actions workflow to the EC2 instance. The pipeline builds and pushes the Docker image, then SSM runs the deployment command on the instance.
+AWS Systems Manager Run Command is used instead of SSH for deployment. The pipeline builds and pushes the Docker image, then SSM runs the deployment commands on EC2.
 
 ## 5. Application metrics endpoint
 
-The Prometheus endpoint initially returned a 404 because the application did not expose Prometheus metrics by default. I added the required Spring Boot Actuator and Prometheus registry configuration, rebuilt the Docker image, and verified that `/actuator/prometheus` returned metrics.
+The Prometheus endpoint initially returned `404` because the application did not expose Prometheus metrics by default. Spring Boot Actuator and the Prometheus registry configuration were added, then `/actuator/prometheus` was verified.
 
 ## 6. Prometheus and Grafana connectivity
 
-Prometheus and Grafana were running as separate Docker containers, so the datasource URL and scrape target had to match Docker networking correctly. After placing the containers on the same Docker network and fixing the target port, Grafana was able to query Prometheus.
+Prometheus and Grafana run as separate Docker containers. The datasource URL and scrape target had to match Docker networking. Both containers were placed on the same Docker network, and Grafana was configured to query Prometheus by container name.
 
 ## 7. Centralized logs
 
-Docker logs are easy to check locally, but they are not enough for centralized logging. I configured the application container to send logs to CloudWatch Logs using the AWS logs driver. This makes application logs available from the AWS Console.
+Docker local logs are useful for debugging, but centralized logging is easier to operate. The application container sends logs to CloudWatch Logs using the AWS logs driver.
 
 ## 8. Runtime configuration after EC2 recreation
 
-When the EC2 instance was recreated, manually created runtime files were lost. To make the deployment repeatable, application environment values were moved to AWS SSM Parameter Store as a SecureString. During deployment, the EC2 instance fetches the parameter and recreates the env file before starting the container.
+When EC2 was recreated, manually created runtime files were lost. Runtime configuration was moved to AWS Secrets Manager. During deployment, EC2 fetches the secret and recreates the env file before starting the container.
 
 ## 9. Changing public IP during testing
 
-My local internet public IP changed while testing security group access. To keep the setup flexible, I made the allowed CIDR configurable. For a production setup, this should be restricted to office/VPN networks or replaced with a more controlled access pattern.
+The local public IP changed during testing, which affected security group access. The allowed CIDR was kept configurable. For production, this should be restricted to office/VPN networks or replaced with a more controlled access pattern.

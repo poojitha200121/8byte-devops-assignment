@@ -45,4 +45,7 @@ output "github_actions_role_arn" {
   value = aws_iam_role.github_actions.arn
 }
 
-
+output "app_secret_name" {
+  description = "Secrets Manager secret used for application runtime configuration"
+  value       = aws_secretsmanager_secret.app_env.name
+}

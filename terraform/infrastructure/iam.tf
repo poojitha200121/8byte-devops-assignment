@@ -45,10 +45,10 @@ resource "aws_iam_role_policy" "ec2_app_env" {
     Statement = [
       {
         Action = [
-          "ssm:GetParameter",
+          "secretsmanager:GetSecretValue",
         ]
         Effect   = "Allow"
-        Resource = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.project_name}/${var.environment}/app-env"
+        Resource = aws_secretsmanager_secret.app_env.arn
       }
     ]
   })

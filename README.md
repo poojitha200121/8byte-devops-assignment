@@ -4,14 +4,12 @@
 
 This repository contains an end-to-end DevOps setup for a Spring Boot Petclinic application. The application is containerized with Docker, deployed on AWS, automated with GitHub Actions, and monitored using Prometheus, Grafana, and CloudWatch.
 
-The main focus of this project is infrastructure provisioning, deployment automation, security, monitoring, logging, and documentation.
-
 ## Tech Stack
 
 - Java 21 and Spring Boot
 - Docker
 - Terraform
-- AWS EC2, RDS PostgreSQL, ECR, IAM, SSM, ALB, CloudWatch, S3
+- AWS EC2, RDS PostgreSQL, ECR, IAM, SSM, ALB, CloudWatch, S3, Secrets Manager
 - GitHub Actions
 - Prometheus and Grafana
 
@@ -95,15 +93,15 @@ Deployment is done through AWS Systems Manager instead of SSH, so port 22 does n
 
 ## Runtime Configuration and Secrets
 
-Application runtime configuration is stored in AWS SSM Parameter Store as a `SecureString`.
+Application runtime configuration is stored in AWS Secrets Manager. Terraform creates the secret resource, and the actual secret value is added separately so passwords are not written in Terraform code.
 
-Parameter name:
+Secret name:
 
 ```text
-/8byte-devops-assignment/staging/app-env
+8byte-devops-assignment/staging/app-env
 ```
 
-During deployment, the EC2 instance fetches this parameter and creates:
+During deployment, the EC2 instance fetches this secret and creates:
 
 ```text
 /opt/petclinic/app.env
@@ -111,7 +109,7 @@ During deployment, the EC2 instance fetches this parameter and creates:
 
 The Docker container uses this file through `--env-file`.
 
-This avoids storing database credentials in Git and also avoids manually recreating the env file when EC2 is replaced.
+This avoids storing database credentials in Git and removes the need to manually recreate the env file when EC2 is replaced.
 
 ## Monitoring
 
@@ -168,7 +166,7 @@ CloudWatch log retention is configured in Terraform to control cost.
 - GitHub Actions uses OIDC instead of long-lived AWS access keys.
 - EC2 uses an IAM instance profile for AWS access.
 - Deployment is done using SSM instead of SSH.
-- Runtime secrets are stored in SSM Parameter Store as `SecureString`.
+- Runtime secrets are stored in AWS Secrets Manager.
 - EC2 metadata uses IMDSv2.
 - ECR image scanning is enabled.
 - Security group ingress is configurable using Terraform variables.
@@ -181,7 +179,7 @@ RDS automated backup retention is configured in Terraform:
 backup_retention_period = 1
 ```
 
-For this assignment, the retention period is kept low to reduce cost. For production, the backup retention period should be increased, deletion protection should be enabled, and final snapshots should be retained.
+For this assignment, the retention period is kept low to reduce cost. For production, backup retention should be increased, deletion protection should be enabled, and final snapshots should be retained.
 
 ## Cost Optimization
 
