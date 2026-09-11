@@ -35,12 +35,14 @@ EOF
 
 docker network create monitoring 2>/dev/null || true
 
+docker volume create prometheus-storage >/dev/null
 docker rm -f prometheus 2>/dev/null || true
 docker run -d --name prometheus \
   --restart unless-stopped \
   --network monitoring \
   --add-host=host.docker.internal:host-gateway \
   -p 9091:9090 \
+  -v prometheus-storage:/prometheus \
   -v "${MONITORING_DIR}/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
   prom/prometheus
 
@@ -53,6 +55,14 @@ docker run -d --name grafana \
   -v grafana-storage:/var/lib/grafana \
   -v "${GRAFANA_DIR}/provisioning:/etc/grafana/provisioning:ro" \
   grafana/grafana
+
+# Container creation is not enough: wait until both HTTP services respond.
+curl --fail --silent --show-error --retry 30 --retry-delay 2 \
+  --retry-connrefused --connect-timeout 2 --max-time 5 \
+  http://localhost:9091/-/ready
+curl --fail --silent --show-error --retry 30 --retry-delay 2 \
+  --retry-connrefused --connect-timeout 2 --max-time 5 \
+  http://localhost:3000/api/health
 
 echo "Monitoring setup completed."
 echo "Prometheus: http://<EC2_PUBLIC_IP>:9091"

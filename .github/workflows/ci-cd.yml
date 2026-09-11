@@ -72,6 +72,7 @@ jobs:
                 fi
 
                 echo "Deploying to EC2 instance: $INSTANCE_ID"
+                echo "INSTANCE_ID=$INSTANCE_ID" >> "$GITHUB_ENV"
 
                 COMMAND_ID=$(aws ssm send-command \
                   --instance-ids "$INSTANCE_ID" \
@@ -81,3 +82,62 @@ jobs:
                   --output text)
                 sleep 20
                 aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID"
+
+           - name: Install and verify monitoring using SSM
+             timeout-minutes: 15
+             run: |
+                set -euo pipefail
+
+                # Send the checked-out script, so EC2 does not need a Git checkout.
+                python3 - <<'PY'
+                import base64
+                import json
+                from pathlib import Path
+
+                script = Path("monitoring/install-monitoring.sh").read_text()
+                encoded = base64.b64encode(script.encode()).decode()
+                parameters = {
+                    "commands": [
+                        "set -e",
+                        "mkdir -p /opt/monitoring",
+                        f"printf '%s' '{encoded}' | base64 --decode > /opt/monitoring/install-monitoring.sh",
+                        "bash /opt/monitoring/install-monitoring.sh",
+                    ],
+                    "executionTimeout": ["600"],
+                }
+                Path("monitoring-parameters.json").write_text(json.dumps(parameters))
+                PY
+
+                COMMAND_ID=$(aws ssm send-command \
+                  --region ap-south-1 \
+                  --instance-ids "$INSTANCE_ID" \
+                  --document-name AWS-RunShellScript \
+                  --parameters file://monitoring-parameters.json \
+                  --query Command.CommandId --output text)
+
+                for attempt in $(seq 1 80); do
+                  if RESULT=$(aws ssm get-command-invocation \
+                    --region ap-south-1 \
+                    --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID" \
+                    --output json 2>monitoring-ssm-error.txt); then
+                    STATUS=$(printf '%s' "$RESULT" | python3 -c 'import json, sys; print(json.load(sys.stdin)["Status"])')
+                    case "$STATUS" in
+                      Success)
+                        printf '%s\n' "$RESULT"
+                        exit 0
+                        ;;
+                      Pending|InProgress|Delayed) ;;
+                      *)
+                        printf '%s\n' "$RESULT"
+                        exit 1
+                        ;;
+                    esac
+                  elif ! grep -q InvocationDoesNotExist monitoring-ssm-error.txt; then
+                    cat monitoring-ssm-error.txt >&2
+                    exit 1
+                  fi
+                  sleep 10
+                done
+
+                echo "Monitoring installation did not finish within the polling timeout." >&2
+                exit 1

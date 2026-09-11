@@ -127,7 +127,19 @@ The monitoring setup script is available at:
 monitoring/install-monitoring.sh
 ```
 
-Run it on EC2 after infrastructure creation:
+The GitHub Actions deployment job automatically sends this script to EC2 using
+SSM and executes it after the application deployment step. No repository checkout
+is required on EC2. The job waits for the SSM command and fails if installation or
+the Prometheus/Grafana HTTP readiness checks fail.
+
+Each deployment recreates the monitoring containers, briefly interrupting monitoring.
+Grafana and Prometheus retain their data in the `grafana-storage` and
+`prometheus-storage` Docker volumes on the same EC2 instance. Replacing EC2 requires
+a new deployment to install monitoring; these local volumes do not survive instance
+replacement. On the first run after this change, any old Prometheus data stored only
+inside its container is not migrated into the new volume.
+
+For manual installation or troubleshooting, copy the script to EC2 and run:
 
 ```bash
 sudo bash monitoring/install-monitoring.sh
