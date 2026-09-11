@@ -57,11 +57,14 @@ docker run -d --name grafana \
   grafana/grafana
 
 # Container creation is not enough: wait until both HTTP services respond.
+# Published ports may reset connections while the services are starting.
+echo "Waiting for Prometheus readiness..."
 curl --fail --silent --show-error --retry 30 --retry-delay 2 \
-  --retry-connrefused --connect-timeout 2 --max-time 5 \
+  --retry-all-errors --retry-max-time 120 --connect-timeout 2 --max-time 5 \
   http://localhost:9091/-/ready
+echo "Waiting for Grafana readiness..."
 curl --fail --silent --show-error --retry 30 --retry-delay 2 \
-  --retry-connrefused --connect-timeout 2 --max-time 5 \
+  --retry-all-errors --retry-max-time 120 --connect-timeout 2 --max-time 5 \
   http://localhost:3000/api/health
 
 echo "Monitoring setup completed."
