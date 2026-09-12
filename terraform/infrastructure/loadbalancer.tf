@@ -1,3 +1,4 @@
+#loadbalancer
 resource "aws_lb" "app" {
   name               = "8byte-${var.environment}-alb"
   internal           = false
